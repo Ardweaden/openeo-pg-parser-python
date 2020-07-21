@@ -84,7 +84,7 @@ def validate_collections(process_graph, collections_src):
                         available_bands.extend([band.lower() for band in collection_dim['values']])
 
                 # check bands
-                if 'bands' in node.arguments.keys() and available_bands:
+                if 'bands' in node.arguments.keys() and node.arguments['bands'] and available_bands:
                     node_bands = [band.lower() for band in node.arguments['bands']]
                     for node_band in node_bands:
                         if node_band not in available_bands:

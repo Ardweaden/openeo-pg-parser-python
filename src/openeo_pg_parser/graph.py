@@ -2,7 +2,6 @@ import copy
 import numpy as np
 from pprint import pformat
 from collections import OrderedDict
-import igraph as ig
 from openeo_pg_parser.definitions import OpenEOProcess
 from openeo_pg_parser.definitions import OpenEOParameter
 
@@ -469,7 +468,7 @@ class Graph:
 
         return Graph.from_list(nodes)
 
-    def sort(self, by='dependency'):
+    def sort(self, by='depth'):
         """
         Sorts graph according to sorting strategy.
 
@@ -486,13 +485,7 @@ class Graph:
             Sorted graph.
         """
 
-        if by == "dependency":
-            # use igraph for topological sorting
-            ig = self.to_igraph()
-            node_order = ig.topological_sorting()
-            ordered_node_ids = np.array(ig.vs['name'])[node_order]
-            nodes_ordered = [self[ordered_node_id] for ordered_node_id in ordered_node_ids]
-        elif by == "depth":
+        if by == "depth":
             depths = [node.depth for node in self.nodes]
             node_order = np.argsort(depths)
             nodes_ordered = np.array(list(self.nodes))[node_order].tolist()
@@ -519,91 +512,6 @@ class Graph:
                         edge_node.add_edge(edge)
 
         return self
-
-    def plot(self, layout="kamada_kawai", margin=100, bbox=(0, 0, 600, 600), node_size=20):
-        """
-        Generates an igraph plot object.
-
-        Parameters
-        ----------
-        layout : str, optional
-            Defines the way the vertices are placed on a 2D map:
-                - "kamada_kawai" (default)
-                - "drl"
-                - "fruchterman_reingold"
-                - "grid_fruchterman_reingold"
-                - "lgl"
-                - "random"
-                - "reingold_tilford"
-                - "reingold_tilford_circular"
-        margin : int, optional
-            Specifies the margin of the plot in px (defaults to 100).
-        bbox : 2- or 4-tuple, optional
-            Defines the size of the plot. If this is a tuple
-            with two integers, it is interpreted as the width and height of the plot
-            (in pixels for PNG images and on-screen plots, or in points for PDF,
-            SVG and PostScript plots, where 72 pt = 1 inch = 2.54 cm). If this is
-            a tuple with four integers, the first two denotes the X and Y coordinates
-            of a corner and the latter two denoting the X and Y coordinates of the
-            opposite corner. Defaults to (0, 0, 600, 600).
-        node_size : int, optional
-            Size of the node in px. Defaults to 20.
-
-        Returns
-        -------
-        igraph.drawing.Plot :
-            igraph plot.
-
-        """
-        ig_graph = self.to_igraph()
-        ig_layout = ig_graph.layout(layout)
-        ig_graph.vs["label"] = [self[node_id].name for node_id in ig_graph.vs["name"]]
-        if "name" in ig_graph.es.attribute_names():
-            ig_graph.es["label"] = ig_graph.es["name"]
-        ig_graph.vs["label_dist"] = [1.5]
-
-        max_depth = self.max_depth
-        if max_depth is not None:
-            n_colours = max_depth + 1
-            colours = [list(np.random.random(size=3)) for i in range(n_colours)]
-            ig_graph.vs["color"] = [colours[self[node_id].depth] for node_id in ig_graph.vs["name"]]
-
-        return ig.plot(ig_graph, layout=ig_layout, margin=margin, bbox=bbox, vertex_size=node_size)
-
-    def to_igraph(self):
-        """
-        Converts a graph.Graph into an ig.Graph.
-        The ig.Graph object contains nodes with their ID's and edges with their respective names.
-
-        Returns
-        -------
-        ig.Graph :
-            Converted ig.Graph object.
-
-        Notes
-        -----
-        The ig.Graph object only contains callback edges originating from a result node.
-
-        """
-        edges = []
-        for node in self.nodes:
-            for edge in node.edges:
-                if not edge.hidden and edge not in edges:
-                    # ignore nodes, which are not contained in the graph
-                    if edge.nodes[0].id not in self.ids or edge.nodes[1].id not in self.ids:
-                        continue
-                    # ignore non-result, callback nodes
-                    if edge.name == "callback" and not edge.nodes[0].is_result:
-                        continue
-                    edges.append(edge)
-        if edges:
-            tuple_edges = [(edge.nodes[0].id, edge.nodes[1].id) for edge in edges]
-            ig_graph = ig.Graph.TupleList(tuple_edges, directed=True)
-            ig_graph.es["name"] = [edge.name for edge in edges]
-        else:
-            ig_graph = ig.Graph.DictList([{'name': node.id} for node in self.nodes], [])
-
-        return ig_graph
 
 
 class OpenEONode(Node):
